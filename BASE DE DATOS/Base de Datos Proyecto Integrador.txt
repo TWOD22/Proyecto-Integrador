@@ -1,0 +1,131 @@
+USUARIO: ADMI_PRACTICAS
+CONTRA: admi
+----
+
+CREATE USER ADMI_PRACTICAS IDENTIFIED BY admi;
+GRANT CONNECT, RESOURCE, CREATE VIEW, UNLIMITED TABLESPACE TO ADMI_PRACTICAS;
+CONNECT ADMI_PRACTICAS/admi;
+
+-- 1. TABLA: PROGRAMA ACADÉMICO (T01)
+
+CREATE TABLE Programa_Academico (
+    ID_Programa VARCHAR2(15) PRIMARY KEY,
+    Nombre_Programa VARCHAR2(100) NOT NULL UNIQUE
+);
+
+-- 2. TABLA: USUARIO (T02) - Centraliza todos los roles
+
+CREATE TABLE Usuario (
+    Cedula_Usuario VARCHAR2(20) PRIMARY KEY,
+    ID_Programa VARCHAR2(15),
+    Nombre VARCHAR2(50) NOT NULL,
+    Apellido VARCHAR2(50) NOT NULL,
+    Correo VARCHAR2(100) NOT NULL UNIQUE,
+    Contrasena VARCHAR2(255) NOT NULL,
+    Rol VARCHAR2(20) NOT NULL,
+    Semestre NUMBER(2),
+    Estado_Usuario VARCHAR2(15) NOT NULL,
+    Habilitado_Asig NUMBER(1) DEFAULT 0 NOT NULL,
+    CONSTRAINT fk_usuario_programa FOREIGN KEY (ID_Programa) REFERENCES Programa_Academico(ID_Programa),
+    CONSTRAINT chk_rol CHECK (Rol IN ('Director', 'Docente', 'Asesor', 'Estudiante')),
+    CONSTRAINT chk_estado_usr CHECK (Estado_Usuario IN ('Activo', 'Inactivo')),
+    CONSTRAINT chk_habilitado CHECK (Habilitado_Asig IN (0, 1)),
+    CONSTRAINT chk_semestre CHECK (Semestre BETWEEN 1 AND 8),
+    CONSTRAINT chk_correo_fmt CHECK (REGEXP_LIKE (Correo, '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,4}$'))
+);
+
+-- 3. TABLA: INSTITUCIÓN RECEPTORA (T03)
+
+CREATE TABLE Institucion_Receptora (
+    ID_Institucion VARCHAR2(15) PRIMARY KEY,
+    NIT_Institucion VARCHAR2(20) NOT NULL UNIQUE,
+    Nombre_Institucion VARCHAR2(255) NOT NULL,
+    Direccion VARCHAR2(50) NOT NULL,
+    Estado_Convenio VARCHAR2(15) NOT NULL,
+    Cupos_Totales NUMBER NOT NULL,
+    Cupos_Disp NUMBER NOT NULL,
+    Tel_Institucion VARCHAR2(30) NOT NULL,
+    Correo_Institucion VARCHAR2(100) NOT NULL,
+    CONSTRAINT chk_cupos_neg CHECK (Cupos_Disp >= 0),
+    CONSTRAINT chk_cupos_logica CHECK (Cupos_Disp <= Cupos_Totales),
+    CONSTRAINT chk_convenio CHECK (Estado_Convenio IN ('Vigente', 'Vencido', 'En Trámite'))
+);
+
+-- 4. TABLA: DOCUMENTOS (T04)
+
+CREATE TABLE Documentos (
+    ID_Documento VARCHAR2(15) PRIMARY KEY,
+    Cedula_Estudiante VARCHAR2(20) NOT NULL,
+    Tipo_Documento VARCHAR2(50) NOT NULL,
+    Fecha_Carga TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    Estado_Doc VARCHAR2(20) DEFAULT 'En Revisión' NOT NULL,
+    Ruta_Archivo VARCHAR2(500) NOT NULL,
+    CONSTRAINT fk_doc_estudiante FOREIGN KEY (Cedula_Estudiante) REFERENCES Usuario(Cedula_Usuario),
+    CONSTRAINT chk_estado_doc CHECK (Estado_Doc IN ('En Revisión', 'Válido', 'Rechazado'))
+);
+
+-- 5. TABLA: SELECCIÓN INSTITUCIÓN (T05)
+
+CREATE TABLE Seleccion_Institucion (
+    ID_Seleccion VARCHAR2(15) PRIMARY KEY,
+    Cedula_Estudiante VARCHAR2(20) NOT NULL,
+    ID_Inst_Op1 VARCHAR2(15) NOT NULL,
+    ID_Inst_Op2 VARCHAR2(15) NOT NULL,
+    Estado_Seleccion VARCHAR2(20) DEFAULT 'Pendiente' NOT NULL, 
+    CONSTRAINT fk_sel_estudiante FOREIGN KEY (Cedula_Estudiante) REFERENCES Usuario(Cedula_Usuario),
+    CONSTRAINT fk_sel_op1 FOREIGN KEY (ID_Inst_Op1) REFERENCES Institucion_Receptora(ID_Institucion),
+    CONSTRAINT fk_sel_op2 FOREIGN KEY (ID_Inst_Op2) REFERENCES Institucion_Receptora(ID_Institucion),
+    CONSTRAINT chk_opciones_distintas CHECK (ID_Inst_Op1 <> ID_Inst_Op2),
+    -- Ajustado a tus estados específicos
+    CONSTRAINT chk_estado_sel CHECK (Estado_Seleccion IN ('Pendiente', 'Aprobada', 'Rechazada'))
+);
+
+-- 6. TABLA: ASIGNACIÓN PRÁCTICA (T06)
+
+CREATE TABLE Asignacion_Practica (
+    ID_Asignacion VARCHAR2(15) PRIMARY KEY,
+    Cedula_Estudiante VARCHAR2(20) NOT NULL,
+    ID_Institucion VARCHAR2(15) NOT NULL,
+    Cedula_Docente VARCHAR2(20) NOT NULL,
+    Cedula_Asesor VARCHAR2(20) NOT NULL,
+    Periodo_Academico VARCHAR2(10) NOT NULL,
+    Estado_Asignacion VARCHAR2(15) NOT NULL,
+    CONSTRAINT fk_asig_estudiante FOREIGN KEY (Cedula_Estudiante) REFERENCES Usuario(Cedula_Usuario),
+    CONSTRAINT fk_asig_inst FOREIGN KEY (ID_Institucion) REFERENCES Institucion_Receptora(ID_Institucion),
+    CONSTRAINT fk_asig_docente FOREIGN KEY (Cedula_Docente) REFERENCES Usuario(Cedula_Usuario),
+    CONSTRAINT fk_asig_asesor FOREIGN KEY (Cedula_Asesor) REFERENCES Usuario(Cedula_Usuario),
+    CONSTRAINT chk_estado_asig CHECK (Estado_Asignacion IN ('Activa', 'Cerrada', 'Cancelada'))
+);
+
+COMMIT;
+
+
+DATOS SEMILLAS PARA LLENAR LA BASE DE DATOS
+
+INSERT INTO Programa_Academico (ID_Programa, Nombre_Programa) 
+VALUES ('LIC-EDUINF', 'Licenciatura en Educación Infantil');
+
+INSERT INTO Programa_Academico (ID_Programa, Nombre_Programa) 
+VALUES ('LIC-LITLCAS', 'Licenciatura en Literatura y Lengua Castellana');
+
+INSERT INTO Usuario (Cedula_Usuario, ID_Programa, Nombre, Apellido, Correo, Contrasena, Rol, Estado_Usuario)
+VALUES ('12345', 'LIC-EDUINF', 'Carlos', 'Admin', 'director@u.com', 'admin123', 'Director', 'Activo');
+
+USUARIO ADMI DIRECTO LICENCIATURA base de datos
+cedula: 12345
+contra: admin123
+
+
+-- D. INSERTAR UN DOCENTE Y UN ASESOR (Para probar asignaciones después)
+INSERT INTO Usuario (Cedula_Usuario, ID_Programa, Nombre, Apellido, Correo, Contrasena, Rol, Estado_Usuario)
+VALUES ('1010', 'LIC-EDUINF', 'Juan', 'Docente', 'juan@u.com', 'docente123', 'Docente', 'Activo');
+
+INSERT INTO Usuario (Cedula_Usuario, ID_Programa, Nombre, Apellido, Correo, Contrasena, Rol, Estado_Usuario)
+VALUES ('2020', 'LIC-EDUINF', 'Marta', 'Asesor', 'marta@externo.com', 'asesor123', 'Asesor', 'Activo');
+
+
+INSERT INTO Institucion_Receptora (ID_Institucion, NIT_Institucion, Nombre_Institucion, Direccion, Estado_Convenio, Cupos_Totales, Cupos_Disp, Tel_Institucion, Correo_Institucion)
+VALUES ('INST-01', '890.207.620-6', 'Colegio Tecnico Vicente Azuero', 'Calle 50 # 2-106', 'Vigente', 5, 5, '3046417184', 'col.vicenteazuero@semfloridablanca.gov.co');
+
+INSERT INTO Institucion_Receptora (ID_Institucion, NIT_Institucion, Nombre_Institucion, Direccion, Estado_Convenio, Cupos_Totales, Cupos_Disp, Tel_Institucion, Correo_Institucion)
+VALUES ('INST-02', '890.201.212-7', 'Escuela Normal Superior de Bucaramanga', 'Calle 30 No. 27-167', 'Vigente', 3, 3, '3123697496', 'ienormal@bucaramanga.edu.co');
